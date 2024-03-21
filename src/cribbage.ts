@@ -3,7 +3,7 @@ import { countPoints } from './points';
 import { playThePlay } from './thePlay';
 
 export type Player = {
-  pickHand: (hand: Card[], isMyCrib: boolean) => {
+  pickHand: (hand: Card[], isMyCrib: boolean, log?: boolean) => {
     crib: Card[],
     keep: Card[],
   };

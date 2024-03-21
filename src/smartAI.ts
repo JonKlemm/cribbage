@@ -76,10 +76,11 @@ export const createSmartAI = (makesMistakes: boolean): Player => {
   };
   
   return {
-    pickHand: (hand, isMyCrib) => {
+    pickHand: (hand, isMyCrib, log = false) => {
       let bestValue = Number.NEGATIVE_INFINITY;
       let bestKeep: Card[] = [];
       let bestCrib: Card[] = [];
+      const hands = new Map<string, number>();
     
       // Loop through all possible pairs of cards to put in crib
       for (let i = 0; i < hand.length; i++) {
@@ -100,7 +101,16 @@ export const createSmartAI = (makesMistakes: boolean): Player => {
             bestKeep = keep;
             bestCrib = crib;
           }
+          if (log) {
+            hands.set(`${handToString([...keep])} - ${handToString([...crib])} (${points})`, points);
+          }
         }
+      }
+
+      if (log) {
+        Array.from(hands.entries()).sort(([, aValue], [, bValue]) => bValue - aValue).forEach(([hand]) => {
+          console.log(hand);
+        });
       }
     
       return {
