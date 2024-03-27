@@ -1,6 +1,6 @@
-import { shuffle, values } from "./deck";
-import { createSmartAI } from "./smartAI";
-import { playThePlay } from "./thePlay";
+import { createSmartAI } from "../ai/smartAI";
+import { shuffle, values } from "../gameplay/deck";
+import { playThePlay } from "../gameplay/thePlay";
 
 const calculatePlayCards = () => {
   let numGames = 100_000;

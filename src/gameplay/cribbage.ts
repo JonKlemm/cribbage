@@ -39,7 +39,6 @@ export const play = (player1: Player, player2: Player, startPlayer1: boolean) =>
 
     // Cut
     const cut = deck.pop() as Card;
-    const cribPoints = countPoints(crib, cut, true);
     if (cut.value === 'J') {
       if (isPlayer1Crib) {
         player1Points += 2;
@@ -73,6 +72,7 @@ export const play = (player1: Player, player2: Player, startPlayer1: boolean) =>
     }
 
     // Count dealer points
+    const cribPoints = countPoints(crib, cut, true);
     if (isPlayer1Crib) {
       player1Points += countPoints(player1Cards, cut, false);
       player1Points += cribPoints;

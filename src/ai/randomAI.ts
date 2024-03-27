@@ -1,5 +1,5 @@
-import { Player } from "./cribbage";
-import { Card } from "./deck";
+import { Player } from "../gameplay/cribbage";
+import { Card } from "../gameplay/deck";
 
 export const randomAI: Player = {
   pickHand: (hand) => {

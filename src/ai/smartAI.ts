@@ -1,6 +1,7 @@
-import { Player } from "./cribbage";
-import { Card, getRemainingCards, handToString } from "./deck";
-import { countPlayedCardPoints, countPoints } from "./points";
+import { cardPointsInPlay } from "../precalc/cardPointsInPlay";
+import { Player } from "../gameplay/cribbage";
+import { Card, getRemainingCards, handToString } from "../gameplay/deck";
+import { countPlayedCardPoints, countPoints } from "../gameplay/points";
 
 const handCache = new Map<string, number>();
 const playCache = new Map<string, number>();
@@ -14,6 +15,10 @@ export const createSmartAI = (makesMistakes: boolean): Player => {
     let value = z * stdev + mean;
     value = Math.min(2, Math.max(0, value / 3 + 1));
     return value;
+  }
+
+  const countEstimatedPlayPoints = (hand: Card[]) => {
+    return hand.reduce((totalPoints, card) => totalPoints + cardPointsInPlay[card.value], 0);
   }
 
   // Estimate value of a hand
@@ -30,8 +35,12 @@ export const createSmartAI = (makesMistakes: boolean): Player => {
       const remainingCards = getRemainingCards(hand);
       remainingCards.forEach((cut) => {
         const strValueCut = handToString([...hand, cut]) + `-${isCrib}`;
-        const cardValue = handCache.get(strValueCut) ?? countPoints(hand, cut, isCrib);
+        let cardValue = handCache.get(strValueCut) ?? countPoints(hand, cut, isCrib);
         handCache.set(strValueCut, cardValue);
+        // This isn't the crib so estimate how many points the cards are worth during the play
+        if (!isCrib) {
+          cardValue += countEstimatedPlayPoints(hand);
+        }
         estimatedValue += cardValue / remainingCards.length;
       });
       handCache.set(strValue, estimatedValue);
@@ -64,7 +73,7 @@ export const createSmartAI = (makesMistakes: boolean): Player => {
           estimatedValues.push(estimatedValue);
         }
       }
-      let estimatedValue = estimatedValues.reduce((combined, current) => combined + current, 0) / estimatedValues.length;
+      estimatedValue = estimatedValues.reduce((combined, current) => combined + current, 0) / estimatedValues.length;
       handCache.set(strValue, estimatedValue);
     }
 

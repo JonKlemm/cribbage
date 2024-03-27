@@ -1,5 +1,5 @@
 import { Card, sortCards, values } from './deck';
-import { cardPointsInPlay } from './cardPointsInPlay';
+import { cardPointsInPlay } from '../precalc/cardPointsInPlay';
 
 const getAllSubsets =
       (hand: Card[]): Card[][] => hand.reduce(
@@ -90,13 +90,6 @@ const countNobs = (hand: Card[], cut: Card) => {
   return 0;
 };
 
-const countEstimatedPlayPoints = (hand: Card[], isCrib: boolean) => {
-  if (isCrib) {
-    return 0;
-  }
-  return hand.reduce((totalPoints, card) => totalPoints + cardPointsInPlay[card.value], 0);
-}
-
 // This is used to count how many points a hand is worth
 export const countPoints = (hand: Card[], cut: Card, isCrib: boolean) => {
   const allCards = [...hand, cut];
@@ -106,7 +99,6 @@ export const countPoints = (hand: Card[], cut: Card, isCrib: boolean) => {
   points += countRuns(allCards);
   points += countFlush(hand, cut, isCrib);
   points += countNobs(hand, cut);
-  points += countEstimatedPlayPoints(hand, isCrib);
   return points;
 };
 
