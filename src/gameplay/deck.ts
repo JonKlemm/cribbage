@@ -43,4 +43,4 @@ export const stringToCard = (str: string): Card => ({
 })
 export const stringToCards = (hand: string): Card[] => hand.split('|').map(stringToCard);
 
-export const handToString = (hand: Card[], shouldSort = true): string => (shouldSort ? sortCards(hand) : hand).map((card) => card.value + card.suit).join('|');
+export const handToString = (hand: Card[], cut?: Card): string => [...sortCards([...hand]), cut as Card].filter(Boolean).map((card) => card.value + card.suit).join('|');

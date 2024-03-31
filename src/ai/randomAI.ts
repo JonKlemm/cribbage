@@ -12,6 +12,7 @@ export const randomAI: Player = {
     return {
       keep,
       crib: remainingCards,
+      estimatedValue: 0,
     };
   },
   playCard: (playableCards) => {

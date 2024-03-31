@@ -70,10 +70,13 @@ const countRuns = (allCards: Card[]) => {
   return numberOfRuns.length * longestRun;
 };
 
-const countFlush = (hand: Card[], cut: Card, isCrib: boolean) => {
-  const allCards = [...hand, cut];
+const countFlush = (hand: Card[], cut: Card | null, isCrib: boolean) => {
+  const allCards = [...hand];
+  if (cut) {
+    allCards.push(cut);
+  }
   const isHandFlush = hand.every((card, index, array) => card.suit === array[0].suit);
-  const isAllCardsFlush = allCards.every((card, index, array) => card.suit === array[0].suit);
+  const isAllCardsFlush = cut && allCards.every((card, index, array) => card.suit === array[0].suit);
   if (isAllCardsFlush) {
     return 5;
   } else if (isHandFlush && !isCrib) {
@@ -91,14 +94,19 @@ const countNobs = (hand: Card[], cut: Card) => {
 };
 
 // This is used to count how many points a hand is worth
-export const countPoints = (hand: Card[], cut: Card, isCrib: boolean) => {
-  const allCards = [...hand, cut];
+export const countPoints = (hand: Card[], cut: Card | null, isCrib: boolean) => {
+  const allCards = [...hand];
+  if (cut) {
+    allCards.push(cut);
+  }
   let points = 0;
   points += countFifteens(allCards);
   points += countPairs(allCards);
   points += countRuns(allCards);
   points += countFlush(hand, cut, isCrib);
-  points += countNobs(hand, cut);
+  if (cut) {
+    points += countNobs(hand, cut);
+  }
   return points;
 };
 

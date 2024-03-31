@@ -3,9 +3,10 @@ import { countPoints } from './points';
 import { playThePlay } from './thePlay';
 
 export type Player = {
-  pickHand: (hand: Card[], isMyCrib: boolean, log?: boolean) => {
+  pickHand: (hand: Card[], isMyCrib: boolean) => {
     crib: Card[],
     keep: Card[],
+    estimatedValue: number;
   };
   playCard: (playableCards: Card[], stack: Card[]) => Card;
 };

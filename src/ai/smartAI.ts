@@ -4,9 +4,17 @@ import { Card, getRemainingCards, handToString } from "../gameplay/deck";
 import { countPlayedCardPoints, countPoints } from "../gameplay/points";
 
 const handCache = new Map<string, number>();
-const playCache = new Map<string, number>();
+const handCutCribCache = new Map<string, number>();
+const handCutNotCribCache = new Map<string, number>();
+const cribCache = new Map<string, number>();
 
-export const createSmartAI = (makesMistakes: boolean): Player => {
+type Params = {
+  dontConsiderThePlay?: boolean;
+  logHandDecisions?: boolean;
+  logRiskyPlays?: boolean;
+  makesMistakes: boolean;
+}
+export const createSmartAI = ({ dontConsiderThePlay, logHandDecisions, logRiskyPlays, makesMistakes }: Params): Player => {
   // Normal distribution of values from 0 to 2
   function randomMistake(mean=0, stdev=1) {
     const u = 1 - Math.random();
@@ -23,6 +31,7 @@ export const createSmartAI = (makesMistakes: boolean): Player => {
 
   // Estimate value of a hand
   const estimateValue = (hand: Card[], isCrib: boolean) => {
+    const guaranteedPoints = logRiskyPlays && !isCrib ? countPoints(hand, null, isCrib) : 0;
     const strValue = handToString(hand) + `-${isCrib}`;
     let estimatedValue = 0;
 
@@ -34,11 +43,12 @@ export const createSmartAI = (makesMistakes: boolean): Player => {
     } else {
       const remainingCards = getRemainingCards(hand);
       remainingCards.forEach((cut) => {
-        const strValueCut = handToString([...hand, cut]) + `-${isCrib}`;
-        let cardValue = handCache.get(strValueCut) ?? countPoints(hand, cut, isCrib);
-        handCache.set(strValueCut, cardValue);
+        const strValueCut = handToString(hand, cut);
+        const cacheToUse = isCrib ? handCutCribCache : handCutNotCribCache;
+        let cardValue = cacheToUse.get(strValueCut) ?? countPoints(hand, cut, isCrib);
+        cacheToUse.set(strValueCut, cardValue);
         // This isn't the crib so estimate how many points the cards are worth during the play
-        if (!isCrib) {
+        if (!isCrib && !dontConsiderThePlay) {
           cardValue += countEstimatedPlayPoints(hand);
         }
         estimatedValue += cardValue / remainingCards.length;
@@ -50,17 +60,21 @@ export const createSmartAI = (makesMistakes: boolean): Player => {
     if (makesMistakes) {
       estimatedValue = randomMistake() * estimatedValue;
     }
-    return estimatedValue;
+    return {
+      estimatedValue,
+      guaranteedPoints,
+    };
   };
   
   // Estimate what two crib cards are worth
   const estimatePartialCribValue = (crib: Card[]) => {
+    const guaranteedPoints = logRiskyPlays ? countPoints(crib, null, true) : 0;
     const strValue = handToString(crib);
     let estimatedValue = 0;
 
     // We already know what the value is
-    if ( handCache.get(strValue)) {
-      estimatedValue = handCache.get(strValue) as number;
+    if ( cribCache.get(strValue)) {
+      estimatedValue = cribCache.get(strValue) as number;
 
     // We need to calculate the value
     } else {
@@ -70,25 +84,37 @@ export const createSmartAI = (makesMistakes: boolean): Player => {
         for (let j = i + 1; j < remainingCards.length; j++) {
           const otherCribCards = [remainingCards[i], remainingCards[j]];
           const estimatedValue = estimateValue([...crib, ...otherCribCards], true);
-          estimatedValues.push(estimatedValue);
+          estimatedValues.push(estimatedValue.estimatedValue);
         }
       }
       estimatedValue = estimatedValues.reduce((combined, current) => combined + current, 0) / estimatedValues.length;
-      handCache.set(strValue, estimatedValue);
+      cribCache.set(strValue, estimatedValue);
     }
 
     // Adjust for mistakes
     if (makesMistakes) {
       estimatedValue = randomMistake() * estimatedValue;
     }
-    return estimatedValue;
+    return {
+      estimatedValue,
+      guaranteedPoints,
+    };
   };
   
   return {
-    pickHand: (hand, isMyCrib, log = false) => {
-      let bestValue = Number.NEGATIVE_INFINITY;
-      let bestKeep: Card[] = [];
-      let bestCrib: Card[] = [];
+    pickHand: (hand, isMyCrib) => {
+      const bestEstimatedHand = {
+        bestCrib: [] as Card[],
+        bestKeep: [] as Card[],
+        bestValue: Number.NEGATIVE_INFINITY,
+        guaranteedPoints: 0,
+      };
+      const bestGuaranteedHand = {
+        bestCrib: [] as Card[],
+        bestKeep: [] as Card[],
+        bestValue: Number.NEGATIVE_INFINITY,
+        estimatedPoints: 0,
+      };
       const hands = new Map<string, number>();
     
       // Loop through all possible pairs of cards to put in crib
@@ -98,33 +124,50 @@ export const createSmartAI = (makesMistakes: boolean): Player => {
           const crib = [keep[i], keep[j]];
           keep.splice(i, 1);
           keep.splice(j - 1, 1);
-          let points = estimateValue(keep, false);
+          const keepPoints = estimateValue(keep, false);
+          let estimatedPoints = keepPoints.estimatedValue;
+          let guaranteedPoints = keepPoints.guaranteedPoints;
           const cribPoints = estimatePartialCribValue(crib);
           if (isMyCrib) {
-            points += cribPoints;
+            estimatedPoints += cribPoints.estimatedValue;
+            guaranteedPoints += cribPoints.guaranteedPoints;
           } else {
-            points -= cribPoints;
+            estimatedPoints -= cribPoints.estimatedValue;
+            guaranteedPoints -= cribPoints.guaranteedPoints;
           }
-          if (points > bestValue) {
-            bestValue = points;
-            bestKeep = keep;
-            bestCrib = crib;
+          if (estimatedPoints > bestEstimatedHand.bestValue) {
+            bestEstimatedHand.bestValue = estimatedPoints;
+            bestEstimatedHand.bestKeep = keep;
+            bestEstimatedHand.bestCrib = crib;
+            bestEstimatedHand.guaranteedPoints = guaranteedPoints;
           }
-          if (log) {
-            hands.set(`${handToString([...keep])} - ${handToString([...crib])} (${points})`, points);
+          if (logRiskyPlays && guaranteedPoints > bestGuaranteedHand.bestValue) {
+            bestGuaranteedHand.bestValue = guaranteedPoints;
+            bestGuaranteedHand.bestKeep = keep;
+            bestGuaranteedHand.bestCrib = crib;
+            bestGuaranteedHand.estimatedPoints = estimatedPoints;
+          }
+          if (logHandDecisions) {
+            hands.set(`${handToString(keep)} - ${handToString(crib)} (${estimatedPoints})`, estimatedPoints);
           }
         }
       }
 
-      if (log) {
+      if (logRiskyPlays && bestEstimatedHand.guaranteedPoints < bestGuaranteedHand.bestValue) {
+        console.log(`Best estimated hand: ${handToString(bestEstimatedHand.bestKeep)} - ${handToString(bestEstimatedHand.bestCrib)} (${bestEstimatedHand.guaranteedPoints}) (${bestEstimatedHand.bestValue})`);
+        console.log(`Best guaranteed hand: ${handToString(bestGuaranteedHand.bestKeep)} - ${handToString(bestGuaranteedHand.bestCrib)} (${bestGuaranteedHand.bestValue}) (${bestGuaranteedHand.estimatedPoints})`);
+      }
+
+      if (logHandDecisions) {
         Array.from(hands.entries()).sort(([, aValue], [, bValue]) => bValue - aValue).forEach(([hand]) => {
           console.log(hand);
         });
       }
     
       return {
-        keep: bestKeep,
-        crib: bestCrib,
+        keep: bestEstimatedHand.bestKeep,
+        crib: bestEstimatedHand.bestCrib,
+        estimatedValue: bestEstimatedHand.bestValue,
       };
     },
     playCard: (playableCards, stack) => {
@@ -136,25 +179,17 @@ export const createSmartAI = (makesMistakes: boolean): Player => {
       playableCards.forEach((card) => {
         // TODO - consider what I would play after their card as well
         const stackWithCard = [...stack, card];
-        const thisStr = handToString([...stackWithCard], false);
         let estimatedPoints = 0;
 
-        // We already calculated this play
-        if (playCache.get(thisStr)) {
-          estimatedPoints = playCache.get(thisStr) as number;
-
-        // We need to calculate this play
-        } else {
-          const cardPoints = countPlayedCardPoints([...stackWithCard]);
-          let totalNextPoints = 0;
-          for (let i = 0; i < remainingCards.length; i++) {
-            const nextPoint = countPlayedCardPoints([...stackWithCard, remainingCards[i]]);
-            totalNextPoints += nextPoint;
-          }
-          totalNextPoints = totalNextPoints / remainingCards.length;
-          estimatedPoints = cardPoints - totalNextPoints;
-          playCache.set(thisStr, estimatedPoints);
+      // Calculate this play
+        const cardPoints = countPlayedCardPoints([...stackWithCard]);
+        let totalNextPoints = 0;
+        for (let i = 0; i < remainingCards.length; i++) {
+          const nextPoint = countPlayedCardPoints([...stackWithCard, remainingCards[i]]);
+          totalNextPoints += nextPoint;
         }
+        totalNextPoints = totalNextPoints / remainingCards.length;
+        estimatedPoints = cardPoints - totalNextPoints;
 
         // Adjust for mistakes
         if (makesMistakes) {

@@ -1,5 +1,5 @@
-import { play } from './cribbage';
-import { createSmartAI } from './smartAI';
+import { play } from "../gameplay/cribbage";
+import { createSmartAI } from "../ai/smartAI";
 
 const simulateGames = () => {
   const numGames = 10000;
@@ -9,7 +9,11 @@ const simulateGames = () => {
   let player2Points = 0;
   const start = Date.now();
   for (let i = 0; i < numGames; i++) {
-    const results = play(createSmartAI(false), createSmartAI(true), i % 2 === 0);
+    const results = play(
+      createSmartAI({ makesMistakes: false }),
+      createSmartAI({ dontConsiderThePlay: true, makesMistakes: false }),
+      i % 2 === 0
+    );
     if (results.player1Points > results.player2Points) {
       player1Wins++;
     } else {
